@@ -98,6 +98,34 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     }, 4000)
   }
 
+  /**
+   * Register lock-screen / Now Playing transport handlers.
+   *
+   * iOS only shows three transport slots: it will display previous/next track
+   * buttons when those handlers are set, but if `seekforward`/`seekbackward`
+   * are also set it replaces them with ±skip buttons instead. We therefore
+   * null the seek handlers so the prev/next buttons take priority (the user can
+   * still scrub via the timeline thanks to `seekto` + `setPositionState`).
+   *
+   * iOS recomputes the visible controls when metadata is published, and can
+   * forget handlers registered only once at startup — so this is called both on
+   * init and after every metadata update.
+   */
+  const registerMediaSessionHandlers = () => {
+    if (!('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+    ms.setActionHandler('play', () => void get().togglePlay())
+    ms.setActionHandler('pause', () => void get().togglePlay())
+    ms.setActionHandler('previoustrack', () => void get().previous())
+    ms.setActionHandler('nexttrack', () => void get().next())
+    ms.setActionHandler('seekto', (d) => {
+      if (typeof d.seekTime === 'number') get().seek(d.seekTime)
+    })
+    // Keep prev/next visible by not registering ±skip buttons.
+    ms.setActionHandler('seekforward', null)
+    ms.setActionHandler('seekbackward', null)
+  }
+
   const setMediaSession = (track: Track | undefined) => {
     if (!('mediaSession' in navigator) || !track) return
     const artwork = currentCoverUrl
@@ -112,6 +140,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       album: track.album,
       artwork,
     })
+    // Re-assert handlers each track: iOS reflects them when metadata changes.
+    registerMediaSessionHandlers()
   }
 
   const updatePositionState = () => {
@@ -244,20 +274,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       })
 
       // System / lock-screen / headphone controls.
-      if ('mediaSession' in navigator) {
-        const ms = navigator.mediaSession
-        ms.setActionHandler('play', () => void get().togglePlay())
-        ms.setActionHandler('pause', () => void get().togglePlay())
-        ms.setActionHandler('nexttrack', () => void get().next())
-        ms.setActionHandler('previoustrack', () => void get().previous())
-        ms.setActionHandler('seekto', (d) => {
-          if (typeof d.seekTime === 'number') get().seek(d.seekTime)
-        })
-        // Leave seek forward/backward unset so the system shows the
-        // previous/next track buttons on the lock-screen widget instead.
-        ms.setActionHandler('seekforward', null)
-        ms.setActionHandler('seekbackward', null)
-      }
+      registerMediaSessionHandlers()
 
       // Restore prior session (without autoplay — iOS needs a user gesture).
       const saved = await db.playerState.get('player')
