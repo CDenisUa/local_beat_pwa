@@ -46,19 +46,23 @@ export default function App() {
 
       {toast && <div className="toast">{toast}</div>}
 
-      {/* Developer credit strip */}
-      <div className="credit-strip">
-        <div className="inner">
-          <a
-            href="https://chepio.tech"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Developed by Chepio"
-          >
-            <img src="/images/chepio-tech/logo_designed.svg" alt="chepio.tech" />
-          </a>
+      {/* Developer credit strip — shown on the scrollable Settings screen so it
+          never collides with the home screen's fixed button or the static
+          playlist frame. */}
+      {screen.name === 'settings' && (
+        <div className="credit-strip">
+          <div className="inner">
+            <a
+              href="https://chepio.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Developed by Chepio"
+            >
+              <img src="/images/chepio-tech/logo_designed.svg" alt="chepio.tech" />
+            </a>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

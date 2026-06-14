@@ -24,6 +24,16 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Text inputs must stay selectable/editable. */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 html,
@@ -129,6 +139,12 @@ input {
   display: grid;
   place-items: center;
   color: #fff;
+  flex-shrink: 0;
+}
+.brand .brand-logo {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
   flex-shrink: 0;
 }
 
@@ -784,6 +800,51 @@ input[type='range']::-moz-range-thumb {
 }
 .credit-strip a:hover img {
   filter: none;
+}
+
+/* ---------- Home: fixed bottom create button ---------- */
+.home-create {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + 10px);
+  z-index: 45;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.home-create.with-mini {
+  bottom: calc(var(--mini-h) + var(--safe-bottom) + 18px);
+}
+.screen.has-create {
+  padding-bottom: 90px;
+}
+.screen.has-create.has-mini {
+  padding-bottom: calc(var(--mini-h) + var(--safe-bottom) + 96px);
+}
+
+/* ---------- Playlist: static frame, only the track list scrolls ---------- */
+.playlist-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  padding: calc(var(--safe-top) + 16px) 16px 0;
+}
+.playlist-static {
+  flex-shrink: 0;
+}
+.playlist-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -4px;
+  padding: 0 4px;
+  padding-bottom: 16px;
+}
+.playlist-screen.has-mini .playlist-scroll {
+  padding-bottom: calc(var(--mini-h) + var(--safe-bottom) + 24px);
 }
 
 .spin {
