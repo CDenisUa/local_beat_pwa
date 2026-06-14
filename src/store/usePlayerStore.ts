@@ -355,13 +355,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       }
       if (queueIndex < queue.length - 1) {
         await playAtIndex(queueIndex + 1)
-      } else if (repeatMode === 'all') {
-        await playAtIndex(0)
       } else {
-        // End of queue, no repeat: stop on the last track.
-        intendedToPlay = false
-        getAudio().pause()
-        set({ isPlaying: false })
+        // End of queue: loop back to the first track (cyclic playback).
+        await playAtIndex(0)
       }
     },
 
@@ -372,10 +368,11 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         a.currentTime = 0
         return
       }
-      const { queueIndex, queue, repeatMode } = get()
+      const { queueIndex, queue } = get()
       if (queueIndex > 0) {
         await playAtIndex(queueIndex - 1)
-      } else if (repeatMode === 'all') {
+      } else if (queue.length > 0) {
+        // At the first track: wrap around to the last (cyclic playback).
         await playAtIndex(queue.length - 1)
       } else {
         a.currentTime = 0
