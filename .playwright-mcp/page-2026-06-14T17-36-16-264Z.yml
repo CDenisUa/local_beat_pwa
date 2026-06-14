@@ -1,0 +1,42 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - img "Local Beat" [ref=e7]
+      - generic [ref=e8]:
+        - heading "Local Beat" [level=1] [ref=e9]
+        - generic [ref=e10]: Your offline music
+    - button "Settings" [ref=e11] [cursor=pointer]:
+      - img [ref=e12]
+  - region "Your Playlists" [ref=e15]:
+    - generic [ref=e16]: Your Playlists
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - button "Sport 2 tracks · 5m Updated today" [ref=e19] [cursor=pointer]:
+          - img [ref=e21]
+          - generic [ref=e25]:
+            - generic [ref=e26]: Sport
+            - generic [ref=e27]: 2 tracks · 5m
+            - generic [ref=e28]: Updated today
+        - button "Delete Sport" [ref=e29] [cursor=pointer]:
+          - img [ref=e30]
+      - generic [ref=e34]:
+        - button "Sport 18 tracks · 1h 21m Updated today" [ref=e35] [cursor=pointer]:
+          - img [ref=e37]
+          - generic [ref=e41]:
+            - generic [ref=e42]: Sport
+            - generic [ref=e43]: 18 tracks · 1h 21m
+            - generic [ref=e44]: Updated today
+        - button "Delete Sport" [ref=e45] [cursor=pointer]:
+          - img [ref=e46]
+      - generic [ref=e50]:
+        - button "Sport 0 tracks Updated today" [ref=e51] [cursor=pointer]:
+          - img [ref=e53]
+          - generic [ref=e57]:
+            - generic [ref=e58]: Sport
+            - generic [ref=e59]: 0 tracks
+            - generic [ref=e60]: Updated today
+        - button "Delete Sport" [ref=e61] [cursor=pointer]:
+          - img [ref=e62]
+  - button "New Playlist" [ref=e67] [cursor=pointer]:
+    - img [ref=e68]
+    - text: New Playlist

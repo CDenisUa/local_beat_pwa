@@ -42,6 +42,7 @@ interface PlayerStore {
   togglePlay: () => Promise<void>
   next: () => Promise<void>
   previous: () => Promise<void>
+  previousTrack: () => Promise<void>
   seek: (time: number) => void
   setVolume: (volume: number) => void
   toggleShuffle: () => void
@@ -326,6 +327,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         await playAtIndex(queue.length - 1)
       } else {
         a.currentTime = 0
+      }
+    },
+
+    async previousTrack() {
+      const { queueIndex } = get()
+      if (queueIndex > 0) {
+        await playAtIndex(queueIndex - 1)
       }
     },
 
