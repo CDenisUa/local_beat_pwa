@@ -10,12 +10,21 @@ import type { Track } from '@/types'
 
 interface Props {
   tracks: Track[]
+  editing: boolean
   onPlay: (trackId: string) => void
   onRemove: (trackId: string) => void
+  onRename: (trackId: string) => void
   onReorder: (trackIds: string[]) => void
 }
 
-export default function TrackList({ tracks, onPlay, onRemove, onReorder }: Props) {
+export default function TrackList({
+  tracks,
+  editing,
+  onPlay,
+  onRemove,
+  onRename,
+  onReorder,
+}: Props) {
   const currentTrackId = usePlayerStore((s) => s.currentTrackId)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const currentTime = usePlayerStore((s) => s.currentTime)
@@ -89,12 +98,14 @@ export default function TrackList({ tracks, onPlay, onRemove, onReorder }: Props
             isCurrent={isCurrent}
             isPlaying={isCurrent && isPlaying}
             isDragging={dragId === id}
+            editing={editing}
             remaining={remaining}
             registerRef={(el) => {
               rowRefs.current[id] = el
             }}
             onPlay={() => onPlay(id)}
             onRemove={() => onRemove(id)}
+            onRename={() => onRename(id)}
             onDragStart={handleDragStart(id)}
             onDragMove={handleDragMove}
             onDragEnd={handleDragEnd}

@@ -3,16 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 // Components
 import TrackList from '@/components/TrackList'
 import PlaylistFormModal from '@/components/PlaylistFormModal'
-import {
-  BackIcon,
-  PlusIcon,
-  PlayIcon,
-  ShuffleIcon,
-  EditIcon,
-  TrashIcon,
-  MusicIcon,
-  PlaylistIcon,
-} from '@/components/Icons'
+import { BackIcon, PlusIcon, MusicIcon, EditIcon, FolderPlusIcon } from '@/components/Icons'
 // Store
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
@@ -29,17 +20,20 @@ interface Props {
 export default function PlaylistScreen({ playlistId }: Props) {
   const playlist = useLibraryStore((s) => s.getPlaylist(playlistId))
   const tracks = useLibraryStore((s) => s.getPlaylistTracks(playlistId))
-  const { addFiles, renamePlaylist, deletePlaylist, removeTrack, reorderTracks, importProgress } =
-    useLibraryStore()
+  const { addFiles, removeTrack, renameTrack, reorderTracks, importProgress } = useLibraryStore()
   const player = usePlayerStore()
-  const { goHome, openFullPlayer, showToast } = useUiStore()
+  const { goHome, showToast } = useUiStore()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dirInputRef = useRef<HTMLInputElement>(null)
-  const [renaming, setRenaming] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [renamingTrackId, setRenamingTrackId] = useState<string | null>(null)
+  const renamingTrack = renamingTrackId
+    ? tracks.find((t) => t.id === renamingTrackId)
+    : undefined
 
-  // `webkitdirectory` is not a typed React attribute — set it imperatively.
+  // `webkitdirectory` is not a typed React attribute — set it imperatively so
+  // the picker lets the user choose a whole folder (and its subfolders).
   useEffect(() => {
     if (dirInputRef.current) {
       dirInputRef.current.setAttribute('webkitdirectory', '')
@@ -54,6 +48,9 @@ export default function PlaylistScreen({ playlistId }: Props) {
   }
 
   const totalDuration = tracks.reduce((sum, t) => sum + (t.duration || 0), 0)
+  const trackSummary = `${playlist.trackIds.length} ${
+    playlist.trackIds.length === 1 ? 'track' : 'tracks'
+  }${totalDuration > 0 ? ` · ${formatTotalDuration(totalDuration)}` : ''}`
 
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
@@ -68,20 +65,6 @@ export default function PlaylistScreen({ playlistId }: Props) {
     }
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (dirInputRef.current) dirInputRef.current.value = ''
-  }
-
-  const playAll = () => {
-    if (tracks.length === 0) return
-    if (player.shuffleEnabled) player.toggleShuffle()
-    void player.playPlaylist(playlistId)
-    openFullPlayer()
-  }
-
-  const shufflePlay = () => {
-    if (tracks.length === 0) return
-    if (!player.shuffleEnabled) player.toggleShuffle()
-    void player.playPlaylist(playlistId)
-    openFullPlayer()
   }
 
   const playTrack = (trackId: string) => {
@@ -108,39 +91,35 @@ export default function PlaylistScreen({ playlistId }: Props) {
           <button className="icon-btn" onClick={goHome} aria-label="Back">
             <BackIcon />
           </button>
-          <h1 style={{ fontSize: 18, opacity: 0.7, fontWeight: 600 }}>Playlist</h1>
-        </div>
-
-        <div className="playlist-head">
-          <div className="name">{playlist.name}</div>
-          <div className="sub">
-            {playlist.trackIds.length} {playlist.trackIds.length === 1 ? 'track' : 'tracks'}
-            {totalDuration > 0 && ` · ${formatTotalDuration(totalDuration)}`}
+          <div className="playlist-title">
+            <h1>{playlist.name}</h1>
+            <div className="sub">{trackSummary}</div>
           </div>
-        </div>
-
-        <div className="btn-row">
-          <button className="btn primary" onClick={() => fileInputRef.current?.click()}>
-            <PlusIcon width={18} height={18} /> Add Music
+          <button
+            className={`icon-btn${editing ? ' active' : ''}`}
+            onClick={() => setEditing((v) => !v)}
+            aria-label="Edit tracks"
+            aria-pressed={editing}
+            title="Edit tracks"
+            disabled={tracks.length === 0}
+          >
+            <EditIcon />
           </button>
-          <button className="btn" onClick={() => dirInputRef.current?.click()}>
-            <PlaylistIcon width={18} height={18} /> Add Folder
+          <button
+            className="icon-btn"
+            onClick={() => dirInputRef.current?.click()}
+            aria-label="Add folder"
+            title="Add a whole folder"
+          >
+            <FolderPlusIcon />
           </button>
-        </div>
-        <div className="btn-row">
-          <button className="btn" onClick={playAll} disabled={tracks.length === 0}>
-            <PlayIcon width={18} height={18} /> Play All
-          </button>
-          <button className="btn" onClick={shufflePlay} disabled={tracks.length === 0}>
-            <ShuffleIcon width={18} height={18} /> Shuffle
-          </button>
-        </div>
-        <div className="btn-row">
-          <button className="btn" onClick={() => setRenaming(true)}>
-            <EditIcon width={18} height={18} /> Rename
-          </button>
-          <button className="btn danger" onClick={() => setConfirmDelete(true)}>
-            <TrashIcon width={18} height={18} /> Delete
+          <button
+            className="icon-btn"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Add music"
+            title="Add files"
+          >
+            <PlusIcon />
           </button>
         </div>
 
@@ -180,57 +159,31 @@ export default function PlaylistScreen({ playlistId }: Props) {
               <MusicIcon width={40} height={40} />
             </div>
             <h2>Empty playlist</h2>
-            <p>Tap “Add Music” to pick files, or “Add Folder” to import a whole folder.</p>
+            <p>Tap the folder icon to import a whole folder, or + to pick individual files.</p>
           </div>
         ) : (
           <TrackList
             tracks={tracks}
+            editing={editing}
             onPlay={playTrack}
             onRemove={handleRemove}
+            onRename={(trackId) => setRenamingTrackId(trackId)}
             onReorder={handleReorder}
           />
         )}
       </div>
 
-      {renaming && (
+      {renamingTrack && (
         <PlaylistFormModal
-          title="Rename Playlist"
-          initialValue={playlist.name}
+          title="Rename Track"
+          initialValue={renamingTrack.title}
           confirmLabel="Save"
-          onSubmit={(name) => {
-            void renamePlaylist(playlistId, name)
-            setRenaming(false)
+          onSubmit={(title) => {
+            void renameTrack(renamingTrack.id, title)
+            setRenamingTrackId(null)
           }}
-          onClose={() => setRenaming(false)}
+          onClose={() => setRenamingTrackId(null)}
         />
-      )}
-
-      {confirmDelete && (
-        <div className="modal-backdrop" onClick={() => setConfirmDelete(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Delete playlist?</h2>
-            <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.5 }}>
-              “{playlist.name}” and all {playlist.trackIds.length} of its tracks will be removed from
-              this device. This cannot be undone.
-            </p>
-            <div className="actions">
-              <button className="btn" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn danger"
-                onClick={() => {
-                  playlist.trackIds.forEach((id) => player.handleTrackRemoved(id))
-                  void deletePlaylist(playlistId)
-                  setConfirmDelete(false)
-                  goHome()
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   )

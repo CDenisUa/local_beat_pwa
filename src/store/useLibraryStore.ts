@@ -27,6 +27,7 @@ interface LibraryState {
   deletePlaylist: (id: string) => Promise<void>
   addFiles: (playlistId: string, files: File[]) => Promise<ImportResult>
   removeTrack: (playlistId: string, trackId: string) => Promise<void>
+  renameTrack: (trackId: string, title: string) => Promise<void>
   reorderTracks: (playlistId: string, trackIds: string[]) => Promise<void>
   clearAllMusic: () => Promise<void>
   deleteAllPlaylists: () => Promise<void>
@@ -189,6 +190,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
             : p,
         ),
       }
+    })
+  },
+
+  async renameTrack(trackId, title) {
+    const name = title.trim()
+    if (!name) return
+    await db.tracks.update(trackId, { title: name })
+    set((s) => {
+      const track = s.tracks[trackId]
+      if (!track) return {}
+      return { tracks: { ...s.tracks, [trackId]: { ...track, title: name } } }
     })
   },
 

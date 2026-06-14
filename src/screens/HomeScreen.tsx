@@ -3,7 +3,7 @@ import { useState } from 'react'
 // Components
 import PlaylistCard from '@/components/PlaylistCard'
 import PlaylistFormModal from '@/components/PlaylistFormModal'
-import { PlusIcon, SettingsIcon, MusicIcon, ShuffleIcon, PlayIcon } from '@/components/Icons'
+import { PlusIcon, SettingsIcon, MusicIcon } from '@/components/Icons'
 // Store
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
@@ -11,13 +11,12 @@ import { useUiStore } from '@/store/useUiStore'
 
 export default function HomeScreen() {
   const playlists = useLibraryStore((s) => s.playlists)
-  const tracks = useLibraryStore((s) => s.tracks)
   const createPlaylist = useLibraryStore((s) => s.createPlaylist)
-  const { openPlaylist, openSettings, openFullPlayer } = useUiStore()
-  const { playRandom, resume, canResume, currentTrackId } = usePlayerStore()
+  const deletePlaylist = useLibraryStore((s) => s.deletePlaylist)
+  const { openPlaylist, openSettings, showToast } = useUiStore()
+  const currentTrackId = usePlayerStore((s) => s.currentTrackId)
+  const handleTrackRemoved = usePlayerStore((s) => s.handleTrackRemoved)
   const [creating, setCreating] = useState(false)
-
-  const allTrackIds = Object.keys(tracks)
 
   const handleCreate = async (name: string) => {
     const playlist = await createPlaylist(name)
@@ -25,20 +24,14 @@ export default function HomeScreen() {
     openPlaylist(playlist.id)
   }
 
-  const handleRandom = () => {
-    if (allTrackIds.length === 0) return
-    void playRandom(allTrackIds, null)
-    openFullPlayer()
-  }
-
-  const handleResume = async () => {
-    await resume()
-    openFullPlayer()
+  const handleDeletePlaylist = (playlistId: string, trackIds: string[]) => {
+    trackIds.forEach((id) => handleTrackRemoved(id))
+    void deletePlaylist(playlistId).then(() => showToast('Playlist deleted'))
   }
 
   return (
-    <div className={`screen has-create${currentTrackId ? ' has-mini' : ''}`}>
-      <div className="topbar">
+    <div className={`home-screen${currentTrackId ? ' has-mini' : ''}`}>
+      <header className="home-header topbar">
         <div className="brand">
           <img className="brand-logo" src="/icons/logo.png" alt="Local Beat" />
           <div>
@@ -49,51 +42,42 @@ export default function HomeScreen() {
         <button className="icon-btn" onClick={openSettings} aria-label="Settings">
           <SettingsIcon />
         </button>
-      </div>
+      </header>
 
-      {canResume && currentTrackId && (
-        <button
-          className="btn primary block"
-          onClick={() => void handleResume()}
-          style={{ marginBottom: 10 }}
-        >
-          <PlayIcon width={18} height={18} /> Continue listening
-        </button>
-      )}
-
-      {allTrackIds.length > 0 && (
-        <button className="btn block" onClick={handleRandom} style={{ marginBottom: 8 }}>
-          <ShuffleIcon width={18} height={18} /> Shuffle All
-        </button>
-      )}
-
-      {playlists.length === 0 ? (
-        <div className="empty">
-          <div className="empty-icon">
-            <MusicIcon width={40} height={40} />
-          </div>
-          <h2>No playlists yet</h2>
-          <p>
-            Create a playlist and add your own audio files from this device. Everything stays on
-            your phone — no accounts, no internet needed.
-          </p>
+      <section className="home-playlists" aria-labelledby="home-playlists-title">
+        <div className="section-title" id="home-playlists-title">
+          Your Playlists
         </div>
-      ) : (
-        <>
-          <div className="section-title">Your Playlists</div>
+        {playlists.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">
+              <MusicIcon width={40} height={40} />
+            </div>
+            <h2>No playlists yet</h2>
+            <p>
+              Create a playlist and add your own audio files from this device. Everything stays on
+              your phone — no accounts, no internet needed.
+            </p>
+          </div>
+        ) : (
           <div className="card-grid">
             {playlists.map((p) => (
-              <PlaylistCard key={p.id} playlist={p} onClick={() => openPlaylist(p.id)} />
+              <PlaylistCard
+                key={p.id}
+                playlist={p}
+                onClick={() => openPlaylist(p.id)}
+                onDelete={() => handleDeletePlaylist(p.id, p.trackIds)}
+              />
             ))}
           </div>
-        </>
-      )}
+        )}
+      </section>
 
-      <div className={`home-create${currentTrackId ? ' with-mini' : ''}`}>
+      <section className="home-create">
         <button className="btn primary block" onClick={() => setCreating(true)}>
           <PlusIcon width={18} height={18} /> New Playlist
         </button>
-      </div>
+      </section>
 
       {creating && (
         <PlaylistFormModal

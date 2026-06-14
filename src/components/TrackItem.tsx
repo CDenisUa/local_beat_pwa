@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 // Components
-import { TrashIcon, PlayIcon, PauseIcon, DragIcon } from '@/components/Icons'
+import { TrashIcon, PlayIcon, PauseIcon, DragIcon, EditIcon } from '@/components/Icons'
 // Types
 import type { Track } from '@/types'
 // Utils
@@ -14,11 +14,13 @@ interface Props {
   isCurrent: boolean
   isPlaying: boolean
   isDragging: boolean
+  editing: boolean
   /** Remaining seconds for the currently playing track (countdown). */
   remaining: number | null
   registerRef: (el: HTMLDivElement | null) => void
   onPlay: () => void
   onRemove: () => void
+  onRename: () => void
   onDragStart: (e: ReactPointerEvent) => void
   onDragMove: (e: ReactPointerEvent) => void
   onDragEnd: (e: ReactPointerEvent) => void
@@ -30,10 +32,12 @@ export default function TrackItem({
   isCurrent,
   isPlaying,
   isDragging,
+  editing,
   remaining,
   registerRef,
   onPlay,
   onRemove,
+  onRename,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -48,6 +52,16 @@ export default function TrackItem({
       ref={registerRef}
       className={`track-item${isCurrent ? ' playing' : ''}${isDragging ? ' dragging' : ''}`}
     >
+      <button
+        className="drag-handle"
+        aria-label="Reorder track"
+        onPointerDown={onDragStart}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        onPointerCancel={onDragEnd}
+      >
+        <DragIcon width={20} height={20} />
+      </button>
       <button className="index" onClick={onPlay} aria-label="Play track">
         {isCurrent && isPlaying ? (
           <PauseIcon width={16} height={16} />
@@ -61,33 +75,32 @@ export default function TrackItem({
         <div className="title">{track.title}</div>
         <div className="artist">{track.artist}</div>
       </button>
+      {editing && (
+        <>
+          <button className="row-btn" onClick={onRename} aria-label="Rename track" title="Rename">
+            <EditIcon width={18} height={18} />
+          </button>
+          <button
+            className="row-btn"
+            onClick={() => {
+              if (confirming) {
+                onRemove()
+              } else {
+                setConfirming(true)
+                setTimeout(() => setConfirming(false), 2500)
+              }
+            }}
+            aria-label="Remove track"
+            title={confirming ? 'Tap again to remove' : 'Remove'}
+            style={
+              confirming ? { color: 'var(--danger)', background: 'var(--surface-hover)' } : undefined
+            }
+          >
+            <TrashIcon width={18} height={18} />
+          </button>
+        </>
+      )}
       <span className={`dur${isCurrent && remaining != null ? ' remaining' : ''}`}>{timeLabel}</span>
-      <button
-        className="row-btn"
-        onClick={() => {
-          if (confirming) {
-            onRemove()
-          } else {
-            setConfirming(true)
-            setTimeout(() => setConfirming(false), 2500)
-          }
-        }}
-        aria-label="Remove track"
-        title={confirming ? 'Tap again to remove' : 'Remove'}
-        style={confirming ? { color: 'var(--danger)', background: 'var(--surface-hover)' } : undefined}
-      >
-        <TrashIcon width={18} height={18} />
-      </button>
-      <button
-        className="drag-handle"
-        aria-label="Reorder track"
-        onPointerDown={onDragStart}
-        onPointerMove={onDragMove}
-        onPointerUp={onDragEnd}
-        onPointerCancel={onDragEnd}
-      >
-        <DragIcon width={20} height={20} />
-      </button>
     </div>
   )
 }

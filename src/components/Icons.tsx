@@ -40,6 +40,26 @@ export const PrevIcon = (p: IconProps) => (
   </svg>
 )
 
+export const Rewind10Icon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M8 11 5 8l3-3" />
+    <path d="M5 8h8a6 6 0 1 1-5.2 9" />
+    <text x="13" y="16" fontSize="7" fill="currentColor" stroke="none" textAnchor="middle">
+      10
+    </text>
+  </svg>
+)
+
+export const Forward10Icon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="m16 11 3-3-3-3" />
+    <path d="M19 8h-8a6 6 0 1 0 5.2 9" />
+    <text x="11" y="16" fontSize="7" fill="currentColor" stroke="none" textAnchor="middle">
+      10
+    </text>
+  </svg>
+)
+
 export const ShuffleIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M16 3h5v5" />
@@ -141,5 +161,12 @@ export const DragIcon = (p: IconProps) => (
     <circle cx="15" cy="6" r="1" fill="currentColor" />
     <circle cx="15" cy="12" r="1" fill="currentColor" />
     <circle cx="15" cy="18" r="1" fill="currentColor" />
+  </svg>
+)
+
+export const FolderPlusIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    <path d="M12 10v6M9 13h6" />
   </svg>
 )
