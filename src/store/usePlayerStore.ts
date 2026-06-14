@@ -14,9 +14,29 @@ let audio: HTMLAudioElement | null = null
 let currentObjectUrl: string | null = null
 let currentCoverUrl: string | null = null
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+/**
+ * Whether the user *wants* audio to be playing. Set true on a successful
+ * `play()`, false only on an explicit user pause/stop. Used to tell an
+ * iOS-initiated background suspension apart from a real user pause, and to
+ * auto-resume when the app returns to the foreground.
+ */
+let intendedToPlay = false
 
 function getAudio(): HTMLAudioElement {
-  if (!audio) audio = new Audio()
+  if (!audio) {
+    audio = new Audio()
+    // iOS background-audio hardening: a DOM-connected element with these
+    // attributes survives lock-screen / app-switch far more reliably than a
+    // detached `new Audio()`.
+    audio.preload = 'auto'
+    audio.setAttribute('playsinline', '')
+    audio.setAttribute('webkit-playsinline', '')
+    audio.setAttribute('x-webkit-airplay', 'allow')
+    if (typeof document !== 'undefined' && document.body) {
+      audio.style.display = 'none'
+      document.body.appendChild(audio)
+    }
+  }
   return audio
 }
 
@@ -182,17 +202,45 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         }
       })
       a.addEventListener('play', () => {
+        intendedToPlay = true
         set({ isPlaying: true })
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
         updatePositionState()
       })
       a.addEventListener('pause', () => {
+        // Distinguish an OS-initiated background suspension (iOS lock screen,
+        // app switch) from a genuine user pause. We still keep playback intent
+        // recorded so the app can auto-resume on return to the foreground.
+        const systemSuspend = intendedToPlay && !a.ended && document.hidden
+        if (systemSuspend) {
+          console.warn(
+            '[player] paused while hidden — iOS background suspension; will auto-resume on foreground',
+            { currentTime: a.currentTime, readyState: a.readyState },
+          )
+        }
         set({ isPlaying: false })
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'
         persist()
       })
       a.addEventListener('ended', () => {
         void get().next()
+      })
+      a.addEventListener('stalled', () =>
+        console.warn('[player] stalled — network/decode stall while', document.hidden ? 'hidden' : 'visible'),
+      )
+      a.addEventListener('error', () =>
+        console.error('[player] media error', a.error?.code, a.error?.message),
+      )
+
+      // Safety net: if iOS suspended playback while backgrounded, resume the
+      // moment the app comes back to the foreground (intent is still "playing").
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return
+        if (intendedToPlay && a.paused && a.src) {
+          a.play().catch((err) =>
+            console.warn('[player] foreground auto-resume rejected', err),
+          )
+        }
       })
 
       // System / lock-screen / headphone controls.
@@ -288,6 +336,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
           set({ isPlaying: false })
         }
       } else {
+        // Explicit user pause — clear intent so the foreground safety net
+        // doesn't auto-resume it.
+        intendedToPlay = false
         a.pause()
       }
     },
@@ -308,6 +359,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         await playAtIndex(0)
       } else {
         // End of queue, no repeat: stop on the last track.
+        intendedToPlay = false
         getAudio().pause()
         set({ isPlaying: false })
       }
@@ -389,6 +441,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
 
     stop() {
       const a = getAudio()
+      intendedToPlay = false
       a.pause()
       a.currentTime = 0
       set({ isPlaying: false, currentTime: 0 })
@@ -424,6 +477,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
       const { queue, currentTrackId } = get()
       const newQueue = queue.filter((id) => id !== trackId)
       if (currentTrackId === trackId) {
+        intendedToPlay = false
         getAudio().pause()
         if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl)
         if (currentCoverUrl) URL.revokeObjectURL(currentCoverUrl)

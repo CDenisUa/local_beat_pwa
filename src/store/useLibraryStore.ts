@@ -143,7 +143,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         const playlist = await db.playlists.get(playlistId)
         if (playlist) {
           await db.playlists.update(playlistId, {
-            trackIds: [...playlist.trackIds, ...ids],
+            trackIds: [...ids, ...playlist.trackIds],
             updatedAt,
           })
         }
@@ -155,7 +155,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           tracks,
           playlists: s.playlists.map((p) =>
             p.id === playlistId
-              ? { ...p, trackIds: [...p.trackIds, ...ids], updatedAt }
+              ? { ...p, trackIds: [...ids, ...p.trackIds], updatedAt }
               : p,
           ),
         }
