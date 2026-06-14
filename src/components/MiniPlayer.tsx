@@ -103,7 +103,7 @@ export default function MiniPlayer() {
             aria-label="Previous track"
             disabled={!hasPreviousTrack}
           >
-            <PrevIcon width={26} height={26} />
+            <PrevIcon width={28} height={28} />
           </button>
           <button
             type="button"
@@ -111,7 +111,7 @@ export default function MiniPlayer() {
             onClick={() => jumpBy(-10)}
             aria-label="Rewind 10 seconds"
           >
-            <Rewind10Icon width={26} height={26} />
+            <Rewind10Icon width={28} height={28} />
           </button>
           <button
             type="button"
@@ -119,7 +119,7 @@ export default function MiniPlayer() {
             onClick={() => void togglePlay()}
             aria-label={isPlaying ? 'Pause' : 'Play'}
           >
-            {isPlaying ? <PauseIcon width={28} height={28} /> : <PlayIcon width={28} height={28} />}
+            {isPlaying ? <PauseIcon width={32} height={32} /> : <PlayIcon width={32} height={32} />}
           </button>
           <button
             type="button"
@@ -127,7 +127,7 @@ export default function MiniPlayer() {
             onClick={() => jumpBy(10)}
             aria-label="Forward 10 seconds"
           >
-            <Forward10Icon width={26} height={26} />
+            <Forward10Icon width={28} height={28} />
           </button>
           <button
             type="button"
@@ -136,7 +136,7 @@ export default function MiniPlayer() {
             aria-label="Next track"
             disabled={!hasNextTrack}
           >
-            <NextIcon width={26} height={26} />
+            <NextIcon width={28} height={28} />
           </button>
         </div>
       </div>
