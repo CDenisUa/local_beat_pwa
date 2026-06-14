@@ -81,7 +81,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     if (!('mediaSession' in navigator) || !track) return
     const artwork = currentCoverUrl
       ? [{ src: currentCoverUrl, sizes: '512x512', type: 'image/jpeg' }]
-      : []
+      : [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        ]
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title,
       artist: track.artist,
@@ -201,12 +204,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         ms.setActionHandler('seekto', (d) => {
           if (typeof d.seekTime === 'number') get().seek(d.seekTime)
         })
-        ms.setActionHandler('seekforward', (d) => {
-          get().seek(getAudio().currentTime + (d.seekOffset || 10))
-        })
-        ms.setActionHandler('seekbackward', (d) => {
-          get().seek(getAudio().currentTime - (d.seekOffset || 10))
-        })
+        // Leave seek forward/backward unset so the system shows the
+        // previous/next track buttons on the lock-screen widget instead.
+        ms.setActionHandler('seekforward', null)
+        ms.setActionHandler('seekbackward', null)
       }
 
       // Restore prior session (without autoplay — iOS needs a user gesture).
