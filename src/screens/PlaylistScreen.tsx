@@ -1,7 +1,7 @@
 // Core
 import { useRef, useState } from 'react'
 // Components
-import TrackItem from '@/components/TrackItem'
+import TrackList from '@/components/TrackList'
 import PlaylistFormModal from '@/components/PlaylistFormModal'
 import {
   BackIcon,
@@ -88,12 +88,8 @@ export default function PlaylistScreen({ playlistId }: Props) {
     player.handleTrackRemoved(trackId)
   }
 
-  const move = (from: number, to: number) => {
-    if (to < 0 || to >= playlist.trackIds.length) return
-    const ids = playlist.trackIds.slice()
-    const [moved] = ids.splice(from, 1)
-    ids.splice(to, 0, moved)
-    void reorderTracks(playlistId, ids)
+  const handleReorder = (trackIds: string[]) => {
+    void reorderTracks(playlistId, trackIds)
   }
 
   return (
@@ -163,23 +159,12 @@ export default function PlaylistScreen({ playlistId }: Props) {
           <p>Tap “Add Music” to choose audio files from your device.</p>
         </div>
       ) : (
-        <div className="track-list">
-          {tracks.map((track, i) => (
-            <TrackItem
-              key={track.id}
-              track={track}
-              index={i}
-              isCurrent={player.currentTrackId === track.id}
-              isPlaying={player.currentTrackId === track.id && player.isPlaying}
-              canMoveUp={i > 0}
-              canMoveDown={i < tracks.length - 1}
-              onPlay={() => playTrack(track.id)}
-              onRemove={() => handleRemove(track.id)}
-              onMoveUp={() => move(i, i - 1)}
-              onMoveDown={() => move(i, i + 1)}
-            />
-          ))}
-        </div>
+        <TrackList
+          tracks={tracks}
+          onPlay={playTrack}
+          onRemove={handleRemove}
+          onReorder={handleReorder}
+        />
       )}
 
       {renaming && (

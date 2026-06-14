@@ -331,21 +331,31 @@ input {
   color: var(--danger);
   background: var(--surface-hover);
 }
-.track-item .reorder {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex-shrink: 0;
+.track-item .dur.remaining {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
-.track-item .reorder button {
-  color: var(--text-faint);
-  width: 26px;
-  height: 18px;
+.track-item .drag-handle {
   display: grid;
   place-items: center;
+  width: 36px;
+  height: 40px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  cursor: grab;
+  touch-action: none; /* let the handle own the gesture instead of scrolling */
 }
-.track-item .reorder button:disabled {
-  opacity: 0.25;
+.track-item .drag-handle:active {
+  cursor: grabbing;
+  color: var(--text);
+}
+.track-item.dragging {
+  background: var(--bg-elev-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-sm);
+  position: relative;
+  z-index: 5;
+  opacity: 0.97;
 }
 
 .section-title {
