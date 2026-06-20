@@ -25,6 +25,9 @@ export default defineConfig({
         'icons/apple-touch-icon.png',
       ],
       manifest: {
+        // Explicit, globally-unique app identity. Without this, iOS derives identity
+        // from start_url ('/') and can confuse this app with other root-scoped PWAs.
+        id: '/local-beat',
         name: 'Local Beat — Offline Music Player',
         short_name: 'Local Beat',
         description: 'Your personal offline music player. Your files, your playlists, no accounts.',
