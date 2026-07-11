@@ -25,6 +25,10 @@ export default function TrackList({
   onRename,
   onReorder,
 }: Props) {
+  // A stale `currentTrackId` from the last music session lingers even while
+  // an audiobook is playing (each source keeps its own independent state) —
+  // only treat a row as "current" when music is actually the active source.
+  const isMusicActive = usePlayerStore((s) => s.source === 'music')
   const currentTrackId = usePlayerStore((s) => s.currentTrackId)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const currentTime = usePlayerStore((s) => s.currentTime)
@@ -87,7 +91,7 @@ export default function TrackList({
       {order.map((id, i) => {
         const track = trackMap.get(id)
         if (!track) return null
-        const isCurrent = currentTrackId === id
+        const isCurrent = isMusicActive && currentTrackId === id
         const remaining =
           isCurrent && duration > 0 ? Math.max(0, duration - currentTime) : null
         return (

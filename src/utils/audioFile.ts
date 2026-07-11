@@ -25,7 +25,7 @@ export function baseName(fileName: string): string {
 }
 
 /** Read the audio duration via a throwaway HTMLAudioElement. */
-function readDuration(file: File): Promise<number> {
+export function readAudioDuration(file: File): Promise<number> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file)
     const audio = document.createElement('audio')
@@ -109,7 +109,7 @@ function readTags(file: File): Promise<Partial<ExtractedMeta>> {
 
 /** Combine tag + duration metadata with sensible fallbacks. */
 export async function extractMetadata(file: File): Promise<ExtractedMeta> {
-  const [duration, tags] = await Promise.all([readDuration(file), readTags(file)])
+  const [duration, tags] = await Promise.all([readAudioDuration(file), readTags(file)])
   return {
     title: tags.title || baseName(file.name),
     artist: tags.artist || 'Unknown Artist',

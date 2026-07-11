@@ -12,36 +12,39 @@ import {
 } from '@/components/Icons'
 // Store
 import { usePlayerStore } from '@/store/usePlayerStore'
-import { useLibraryStore } from '@/store/useLibraryStore'
 import { useUiStore } from '@/store/useUiStore'
 // Utils
 import { formatTime } from '@/utils/format'
 
 export default function MiniPlayer() {
   const {
-    currentTrackId,
+    nowPlaying,
     isPlaying,
     currentTime,
     duration,
     coverUrl,
-    queue,
-    queueIndex,
+    source,
+    musicQueue,
+    musicQueueIndex,
+    bookQueue,
+    bookQueueIndex,
     togglePlay,
     next,
     previousTrack,
     seek,
   } = usePlayerStore()
-  const track = useLibraryStore((s) => (currentTrackId ? s.getTrack(currentTrackId) : undefined))
   const openFullPlayer = useUiStore((s) => s.openFullPlayer)
   const [seeking, setSeeking] = useState<number | null>(null)
 
-  if (!track) return null
+  if (!nowPlaying) return null
 
-  const totalDuration = duration || track.duration || 0
+  const totalDuration = duration || 0
   const shownTime = Math.min(seeking ?? currentTime, totalDuration || currentTime)
   const progress = totalDuration > 0 ? Math.min(100, (shownTime / totalDuration) * 100) : 0
+  const queueIndex = source === 'music' ? musicQueueIndex : bookQueueIndex
+  const queueLength = source === 'music' ? musicQueue.length : bookQueue.length
   const hasPreviousTrack = queueIndex > 0
-  const hasNextTrack = queueIndex >= 0 && queueIndex < queue.length - 1
+  const hasNextTrack = queueIndex >= 0 && queueIndex < queueLength - 1
   const seekTo = (time: number) => seek(Math.max(0, Math.min(time, totalDuration || time)))
   const jumpBy = (seconds: number) => {
     seekTo(shownTime + seconds)
@@ -61,8 +64,8 @@ export default function MiniPlayer() {
             {coverUrl ? <img src={coverUrl} alt="" /> : <MusicIcon width={22} height={22} />}
           </button>
           <button type="button" className="mini-info" onClick={openFullPlayer}>
-            <div className="title">{track.title}</div>
-            <div className="artist">{track.artist}</div>
+            <div className="title">{nowPlaying.title}</div>
+            <div className="artist">{nowPlaying.subtitle}</div>
           </button>
         </div>
 

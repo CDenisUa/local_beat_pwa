@@ -68,7 +68,10 @@ export default function PlaylistScreen({ playlistId }: Props) {
   }
 
   const playTrack = (trackId: string) => {
-    if (player.currentTrackId === trackId) {
+    // Guard on `source` too: `currentTrackId` is the last-known music track
+    // and stays set even while an audiobook is playing, so without this an
+    // audiobook session could be toggled instead of starting this track.
+    if (player.source === 'music' && player.currentTrackId === trackId) {
       void player.togglePlay()
     } else {
       void player.playPlaylist(playlistId, trackId)
@@ -85,7 +88,7 @@ export default function PlaylistScreen({ playlistId }: Props) {
   }
 
   return (
-    <div className={`playlist-screen${player.currentTrackId ? ' has-mini' : ''}`}>
+    <div className={`playlist-screen${player.nowPlaying ? ' has-mini' : ''}`}>
       <div className="playlist-static">
         <div className="topbar">
           <button className="icon-btn" onClick={goHome} aria-label="Back">

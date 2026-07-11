@@ -1,10 +1,22 @@
 // Core
 import { create } from 'zustand'
 
+export type AppSection = 'music' | 'audiobooks'
+
 export type Screen =
   | { name: 'home' }
   | { name: 'playlist'; playlistId: string }
   | { name: 'settings' }
+  | { name: 'audiobooks' }
+  | { name: 'audiobook'; bookId: string }
+
+const SECTION_BY_SCREEN: Record<Screen['name'], AppSection> = {
+  home: 'music',
+  playlist: 'music',
+  settings: 'music',
+  audiobooks: 'audiobooks',
+  audiobook: 'audiobooks',
+}
 
 interface UiState {
   screen: Screen
@@ -13,6 +25,8 @@ interface UiState {
   goHome: () => void
   openPlaylist: (playlistId: string) => void
   openSettings: () => void
+  openAudiobookLibrary: () => void
+  openAudiobook: (bookId: string) => void
   openFullPlayer: () => void
   closeFullPlayer: () => void
   showToast: (message: string) => void
@@ -27,6 +41,8 @@ export const useUiStore = create<UiState>((set) => ({
   goHome: () => set({ screen: { name: 'home' } }),
   openPlaylist: (playlistId) => set({ screen: { name: 'playlist', playlistId } }),
   openSettings: () => set({ screen: { name: 'settings' } }),
+  openAudiobookLibrary: () => set({ screen: { name: 'audiobooks' } }),
+  openAudiobook: (bookId) => set({ screen: { name: 'audiobook', bookId } }),
   openFullPlayer: () => set({ fullPlayerOpen: true }),
   closeFullPlayer: () => set({ fullPlayerOpen: false }),
   showToast: (message) => {
@@ -35,3 +51,8 @@ export const useUiStore = create<UiState>((set) => ({
     toastTimer = setTimeout(() => set({ toast: null }), 3200)
   },
 }))
+
+/** Which top-level section (Music / Audio Books) a screen belongs to. */
+export function sectionOfScreen(screen: Screen): AppSection {
+  return SECTION_BY_SCREEN[screen.name]
+}
