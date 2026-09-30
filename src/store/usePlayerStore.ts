@@ -14,6 +14,7 @@ import { buildShuffledQueue } from '@/utils/shuffle'
  * Both music tracks and audiobook chapters play through this one element;
  * there is never a second, competing audio element. */
 let audio: HTMLAudioElement | null = null
+let initialization: Promise<void> | null = null
 /** Object URL for whatever is currently loaded (track or chapter audio). */
 let currentObjectUrl: string | null = null
 /** Object URL for the current *music track's* embedded cover art. */
@@ -445,149 +446,164 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     bookQueue: [],
     bookQueueIndex: -1,
 
-    async init() {
-      if (get().initialized) return
-      const a = getAudio()
+    init() {
+      // Concurrent startup calls (including React StrictMode) must share one
+      // restoration and one set of media listeners, or ended skips tracks.
+      if (!initialization) {
+        initialization = (async () => {
+          if (get().initialized) return
+          const a = getAudio()
 
-      a.addEventListener('timeupdate', () => {
-        const s = get()
-        set({ currentTime: a.currentTime, ...(s.source === 'music' ? { musicCurrentTime: a.currentTime } : {}) })
-        if (s.source === 'music') {
-          persistThrottled()
-        } else {
-          tickAudiobookProgress()
-        }
-      })
-      a.addEventListener('durationchange', () => {
-        if (Number.isFinite(a.duration) && a.duration > 0) {
-          set({ duration: a.duration })
-          updatePositionState()
-        }
-      })
-      a.addEventListener('play', () => {
-        intendedToPlay = true
-        lastListeningTickAt = Date.now()
-        set({ isPlaying: true })
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
-        updatePositionState()
-      })
-      a.addEventListener('pause', () => {
-        // Distinguish an OS-initiated background suspension (iOS lock screen,
-        // app switch) from a genuine user pause. We still keep playback intent
-        // recorded so the app can auto-resume on return to the foreground.
-        const systemSuspend = intendedToPlay && !a.ended && document.hidden
-        if (systemSuspend) {
-          console.warn(
-            '[player] paused while hidden — iOS background suspension; will auto-resume on foreground',
-            { currentTime: a.currentTime, readyState: a.readyState },
-          )
-        }
-        set({ isPlaying: false })
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'
-        persistPlayerState()
-        if (get().source === 'audiobook') flushAudiobookProgressNow()
-      })
-      a.addEventListener('ended', () => {
-        if (get().source === 'audiobook') void handleChapterEnded()
-        else void get().next()
-      })
-      a.addEventListener('stalled', () =>
-        console.warn('[player] stalled — network/decode stall while', document.hidden ? 'hidden' : 'visible'),
-      )
-      a.addEventListener('error', () =>
-        console.error('[player] media error', a.error?.code, a.error?.message),
-      )
-
-      // Safety net: if iOS suspended playback while backgrounded, resume the
-      // moment the app comes back to the foreground (intent is still "playing").
-      // While hidden, flush whatever progress hasn't been persisted yet.
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-          persistPlayerState()
-          if (get().source === 'audiobook') flushAudiobookProgressNow()
-          return
-        }
-        if (intendedToPlay && a.paused && a.src) {
-          a.play().catch((err) =>
-            console.warn('[player] foreground auto-resume rejected', err),
-          )
-        }
-      })
-      window.addEventListener('pagehide', () => {
-        persistPlayerState()
-        if (get().source === 'audiobook') flushAudiobookProgressNow()
-      })
-
-      // System / lock-screen / headphone controls.
-      registerMediaSessionHandlers()
-
-      // Restore prior session (without autoplay — iOS needs a user gesture).
-      const saved = await db.playerState.get('player')
-      if (!saved) {
-        set({ initialized: true })
-        return
-      }
-
-      a.volume = saved.volume
-      set({
-        volume: saved.volume,
-        shuffleEnabled: saved.shuffleEnabled,
-        repeatMode: saved.repeatMode,
-        source: saved.source ?? 'music',
-        currentBookId: saved.currentBookId,
-        initialized: true,
-      })
-
-      if ((saved.source ?? 'music') === 'music') {
-        const lib = useLibraryStore.getState()
-        const trackExists = saved.currentTrackId && lib.getTrack(saved.currentTrackId)
-        set({
-          currentPlaylistId: saved.currentPlaylistId,
-          musicQueue: saved.queue.filter((id) => lib.getTrack(id)),
-          musicQueueIndex: saved.queueIndex,
-        })
-        if (trackExists) {
-          const lastTrack = lib.getTrack(saved.currentTrackId!)!
-          const playlist = lib.getPlaylist(lastTrack.playlistId)
-          set({
-            currentTrackId: saved.currentTrackId,
-            currentTime: saved.currentTime,
-            musicCurrentTime: saved.currentTime,
-            duration: lastTrack.duration || 0,
-            canResume: true,
-            nowPlaying: {
-              title: lastTrack.title,
-              subtitle: lastTrack.artist,
-              label: playlist?.name ?? 'Now Playing',
-              kind: 'music',
-            },
+          a.addEventListener('timeupdate', () => {
+            const s = get()
+            set({ currentTime: a.currentTime, ...(s.source === 'music' ? { musicCurrentTime: a.currentTime } : {}) })
+            if (s.source === 'music') {
+              persistThrottled()
+            } else {
+              tickAudiobookProgress()
+            }
           })
-        }
-      } else if (saved.currentBookId) {
-        const abStore = useAudiobookStore.getState()
-        const book = abStore.getBook(saved.currentBookId)
-        const chapters = abStore.getChapters(saved.currentBookId)
-        if (book && chapters.length > 0) {
-          const idx = chapters[book.currentChapterIndex] ? book.currentChapterIndex : 0
-          const chapter = chapters[idx]
-          set({
-            currentChapterId: chapter.id,
-            currentChapterIndex: idx,
-            bookQueue: chapters.map((c) => c.id),
-            bookQueueIndex: idx,
-            currentTime: book.currentTime,
-            duration: chapter.duration || 0,
-            canResume: true,
-            nowPlaying: {
-              title: chapter.title,
-              subtitle: book.author || book.title,
-              label: book.title,
-              kind: 'audiobook',
-              chapterPosition: { index: idx, count: chapters.length },
-            },
+          a.addEventListener('durationchange', () => {
+            if (Number.isFinite(a.duration) && a.duration > 0) {
+              set({ duration: a.duration })
+              updatePositionState()
+            }
           })
-        }
+          a.addEventListener('play', () => {
+            intendedToPlay = true
+            lastListeningTickAt = Date.now()
+            set({ isPlaying: true })
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
+            updatePositionState()
+          })
+          a.addEventListener('pause', () => {
+            // Distinguish an OS-initiated background suspension (iOS lock screen,
+            // app switch) from a genuine user pause. We still keep playback intent
+            // recorded so the app can auto-resume on return to the foreground.
+            const systemSuspend = intendedToPlay && !a.ended && document.hidden
+            if (systemSuspend) {
+              console.warn(
+                '[player] paused while hidden — iOS background suspension; will auto-resume on foreground',
+                { currentTime: a.currentTime, readyState: a.readyState },
+              )
+            }
+            set({ isPlaying: false })
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'
+            persistPlayerState()
+            if (get().source === 'audiobook') flushAudiobookProgressNow()
+          })
+          a.addEventListener('ended', () => {
+            if (get().source === 'audiobook') void handleChapterEnded()
+            else if (get().repeatMode === 'one') {
+              a.currentTime = 0
+              set({ currentTime: 0, musicCurrentTime: 0 })
+              void a.play().catch(() => set({ isPlaying: false }))
+            }
+            else void get().next()
+          })
+          a.addEventListener('stalled', () =>
+            console.warn('[player] stalled — network/decode stall while', document.hidden ? 'hidden' : 'visible'),
+          )
+          a.addEventListener('error', () =>
+            console.error('[player] media error', a.error?.code, a.error?.message),
+          )
+
+          // Safety net: if iOS suspended playback while backgrounded, resume the
+          // moment the app comes back to the foreground (intent is still "playing").
+          // While hidden, flush whatever progress hasn't been persisted yet.
+          document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+              persistPlayerState()
+              if (get().source === 'audiobook') flushAudiobookProgressNow()
+              return
+            }
+            if (intendedToPlay && a.paused && a.src) {
+              a.play().catch((err) =>
+                console.warn('[player] foreground auto-resume rejected', err),
+              )
+            }
+          })
+          window.addEventListener('pagehide', () => {
+            persistPlayerState()
+            if (get().source === 'audiobook') flushAudiobookProgressNow()
+          })
+
+          // System / lock-screen / headphone controls.
+          registerMediaSessionHandlers()
+
+          // Restore prior session (without autoplay — iOS needs a user gesture).
+          const saved = await db.playerState.get('player')
+          if (!saved) {
+            set({ initialized: true })
+            return
+          }
+
+          a.volume = saved.volume
+          set({
+            volume: saved.volume,
+            shuffleEnabled: saved.shuffleEnabled,
+            repeatMode: saved.repeatMode,
+            source: saved.source ?? 'music',
+            currentBookId: saved.currentBookId,
+            initialized: true,
+          })
+
+          if ((saved.source ?? 'music') === 'music') {
+            const lib = useLibraryStore.getState()
+            const trackExists = saved.currentTrackId && lib.getTrack(saved.currentTrackId)
+            const playlist = saved.currentPlaylistId ? lib.getPlaylist(saved.currentPlaylistId) : undefined
+            const queue = (!saved.shuffleEnabled && playlist ? playlist.trackIds : saved.queue)
+              .filter((id) => lib.getTrack(id))
+            set({
+              currentPlaylistId: saved.currentPlaylistId,
+              musicQueue: queue,
+              musicQueueIndex: saved.currentTrackId ? queue.indexOf(saved.currentTrackId) : -1,
+            })
+            if (trackExists) {
+              const lastTrack = lib.getTrack(saved.currentTrackId!)!
+              const playlist = lib.getPlaylist(lastTrack.playlistId)
+              set({
+                currentTrackId: saved.currentTrackId,
+                currentTime: saved.currentTime,
+                musicCurrentTime: saved.currentTime,
+                duration: lastTrack.duration || 0,
+                canResume: true,
+                nowPlaying: {
+                  title: lastTrack.title,
+                  subtitle: lastTrack.artist,
+                  label: playlist?.name ?? 'Now Playing',
+                  kind: 'music',
+                },
+              })
+            }
+          } else if (saved.currentBookId) {
+            const abStore = useAudiobookStore.getState()
+            const book = abStore.getBook(saved.currentBookId)
+            const chapters = abStore.getChapters(saved.currentBookId)
+            if (book && chapters.length > 0) {
+              const idx = chapters[book.currentChapterIndex] ? book.currentChapterIndex : 0
+              const chapter = chapters[idx]
+              set({
+                currentChapterId: chapter.id,
+                currentChapterIndex: idx,
+                bookQueue: chapters.map((c) => c.id),
+                bookQueueIndex: idx,
+                currentTime: book.currentTime,
+                duration: chapter.duration || 0,
+                canResume: true,
+                nowPlaying: {
+                  title: chapter.title,
+                  subtitle: book.author || book.title,
+                  label: book.title,
+                  kind: 'audiobook',
+                  chapterPosition: { index: idx, count: chapters.length },
+                },
+              })
+            }
+          }
+        })()
       }
+      return initialization
     },
 
     async playPlaylist(playlistId, startTrackId) {
@@ -602,9 +618,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
         ? buildShuffledQueue(playlist.trackIds, startTrackId ? undefined : start)
         : playlist.trackIds.slice()
 
-      // Ensure an explicitly chosen track plays first.
+      // Only shuffle moves a selected track to the front. In normal playback,
+      // keep the playlist order and start at the selected track's own index.
       let index = queue.indexOf(start)
-      if (startTrackId && index > 0) {
+      if (shuffleEnabled && startTrackId && index > 0) {
         queue.splice(index, 1)
         queue.unshift(start)
         index = 0
@@ -684,16 +701,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
 
     async next() {
-      const { source, repeatMode, musicQueueIndex, musicQueue, currentBookId, bookQueueIndex, bookQueue } = get()
+      const { source, musicQueueIndex, musicQueue, currentBookId, bookQueueIndex, bookQueue } = get()
 
       if (source === 'music') {
         if (musicQueue.length === 0) return
-        if (repeatMode === 'one') {
-          const a = getAudio()
-          a.currentTime = 0
-          await a.play().catch(() => set({ isPlaying: false }))
-          return
-        }
         if (musicQueueIndex < musicQueue.length - 1) {
           await playAtIndex(musicQueueIndex + 1)
         } else {
@@ -712,27 +723,19 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
 
     async previous() {
+      if (get().source === 'music') {
+        await get().previousTrack()
+        return
+      }
       const a = getAudio()
-      // Restart current item if we are more than 3s in.
+      // For audiobooks, restart the current chapter if we are more than 3s in.
       if (a.currentTime > 3) {
         a.currentTime = 0
         set({ currentTime: 0 })
         if (get().source === 'audiobook') flushAudiobookProgressNow()
         return
       }
-      const { source, musicQueueIndex, musicQueue, currentBookId, bookQueueIndex } = get()
-
-      if (source === 'music') {
-        if (musicQueueIndex > 0) {
-          await playAtIndex(musicQueueIndex - 1)
-        } else if (musicQueue.length > 0) {
-          // At the first track: wrap around to the last (cyclic playback).
-          await playAtIndex(musicQueue.length - 1)
-        } else {
-          a.currentTime = 0
-        }
-        return
-      }
+      const { currentBookId, bookQueueIndex } = get()
 
       if (currentBookId && bookQueueIndex > 0) {
         flushAudiobookProgressNow()
@@ -744,9 +747,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => {
     },
 
     async previousTrack() {
-      const { source, musicQueueIndex, currentBookId, bookQueueIndex } = get()
+      const { source, musicQueueIndex, musicQueue, currentBookId, bookQueueIndex } = get()
       if (source === 'music') {
-        if (musicQueueIndex > 0) await playAtIndex(musicQueueIndex - 1)
+        if (musicQueue.length === 0) return
+        await playAtIndex(musicQueueIndex > 0 ? musicQueueIndex - 1 : musicQueue.length - 1)
         return
       }
       if (currentBookId && bookQueueIndex > 0) {

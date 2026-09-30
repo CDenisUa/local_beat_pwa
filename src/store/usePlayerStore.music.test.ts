@@ -1,5 +1,6 @@
 // Core
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { waitFor } from '@testing-library/react'
 
 // `addFiles` reads real audio duration via a throwaway <audio> element and
 // waits for `loadedmetadata` — jsdom never fires that event, so it would
@@ -19,7 +20,7 @@ vi.mock('@/utils/audioFile', async () => {
   }
 })
 
-async function freshModules() {
+async function freshModules(opts: { skipPlayerInit?: boolean } = {}) {
   vi.resetModules()
   const { db } = await import('@/services/db')
   const { useLibraryStore } = await import('@/store/useLibraryStore')
@@ -32,7 +33,7 @@ async function freshModules() {
   await db.audiobooks.clear()
   await db.audiobookChapters.clear()
   await db.audiobookBlobs.clear()
-  await usePlayerStore.getState().init()
+  if (!opts.skipPlayerInit) await usePlayerStore.getState().init()
   return { db, useLibraryStore, useAudiobookStore, usePlayerStore }
 }
 
@@ -56,6 +57,19 @@ afterEach(() => {
 })
 
 describe('usePlayerStore — music playback (post audiobook refactor)', () => {
+  it('initializes concurrently without advancing twice for one ended event', async () => {
+    const { useLibraryStore, usePlayerStore } = await freshModules({ skipPlayerInit: true })
+    const { playlist, tracks } = await seedPlaylist(useLibraryStore, 2)
+    await Promise.all([usePlayerStore.getState().init(), usePlayerStore.getState().init()])
+    await usePlayerStore.getState().playPlaylist(playlist.id)
+    const next = vi.spyOn(usePlayerStore.getState(), 'next')
+
+    document.querySelector('audio')!.dispatchEvent(new Event('ended'))
+
+    expect(next).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(usePlayerStore.getState().currentTrackId).toBe(tracks[1].id))
+  })
+
   it('playPlaylist starts the first track with source "music" and correct nowPlaying', async () => {
     const { useLibraryStore, usePlayerStore } = await freshModules()
     const { playlist, tracks } = await seedPlaylist(useLibraryStore, 3)
@@ -79,6 +93,111 @@ describe('usePlayerStore — music playback (post audiobook refactor)', () => {
     expect(usePlayerStore.getState().musicQueueIndex).toBe(1)
     await usePlayerStore.getState().next() // past the end -> wraps to the first track
     expect(usePlayerStore.getState().musicQueueIndex).toBe(0)
+    await usePlayerStore.getState().previous()
+    expect(usePlayerStore.getState().musicQueueIndex).toBe(1)
+  })
+
+  it('keeps playlist order when a selected middle track ends', async () => {
+    const { useLibraryStore, usePlayerStore } = await freshModules()
+    const { playlist, tracks } = await seedPlaylist(useLibraryStore, 4)
+    const ids = tracks.map((track) => track.id)
+
+    await usePlayerStore.getState().playPlaylist(playlist.id, ids[1])
+    expect(usePlayerStore.getState().musicQueue).toEqual(ids)
+    expect(usePlayerStore.getState().musicQueueIndex).toBe(1)
+
+    for (const index of [2, 3, 0]) {
+      document.querySelector('audio')!.dispatchEvent(new Event('ended'))
+      await waitFor(() => expect(usePlayerStore.getState().currentTrackId).toBe(ids[index]))
+      expect(usePlayerStore.getState().musicQueue).toEqual(ids)
+      expect(usePlayerStore.getState().musicQueueIndex).toBe(index)
+    }
+  })
+
+  it.each(['previous', 'previousTrack'] as const)('%s wraps from the first song even after playback has advanced', async (action) => {
+    const { useLibraryStore, usePlayerStore } = await freshModules()
+    const { playlist, tracks } = await seedPlaylist(useLibraryStore, 3)
+    await usePlayerStore.getState().playPlaylist(playlist.id)
+    usePlayerStore.getState().seek(20)
+
+    await usePlayerStore.getState()[action]()
+
+    expect(usePlayerStore.getState().currentTrackId).toBe(tracks[2].id)
+    expect(usePlayerStore.getState().musicQueueIndex).toBe(2)
+    expect(usePlayerStore.getState().currentTime).toBe(0)
+  })
+
+  it('repeat-one repeats an ended song but still allows manual navigation', async () => {
+    const { useLibraryStore, usePlayerStore } = await freshModules()
+    const { playlist, tracks } = await seedPlaylist(useLibraryStore, 2)
+    await usePlayerStore.getState().playPlaylist(playlist.id)
+    usePlayerStore.setState({ repeatMode: 'one' })
+    usePlayerStore.getState().seek(20)
+
+    document.querySelector('audio')!.dispatchEvent(new Event('ended'))
+    expect(usePlayerStore.getState().currentTrackId).toBe(tracks[0].id)
+    expect(usePlayerStore.getState().currentTime).toBe(0)
+
+    await usePlayerStore.getState().next()
+    expect(usePlayerStore.getState().currentTrackId).toBe(tracks[1].id)
+    await usePlayerStore.getState().next()
+    expect(usePlayerStore.getState().currentTrackId).toBe(tracks[0].id)
+    await usePlayerStore.getState().previousTrack()
+    expect(usePlayerStore.getState().currentTrackId).toBe(tracks[1].id)
+  })
+
+  it('keeps a selected song first in shuffle and restores playlist order when shuffle is disabled', async () => {
+    const { useLibraryStore, usePlayerStore } = await freshModules()
+    const { playlist, tracks } = await seedPlaylist(useLibraryStore, 4)
+    const ids = tracks.map((track) => track.id)
+    usePlayerStore.setState({ shuffleEnabled: true })
+    await usePlayerStore.getState().playPlaylist(playlist.id, ids[2])
+
+    const shuffled = usePlayerStore.getState().musicQueue
+    expect(shuffled[0]).toBe(ids[2])
+    expect(new Set(shuffled)).toEqual(new Set(ids))
+    await usePlayerStore.getState().next()
+    expect(usePlayerStore.getState().currentTrackId).toBe(shuffled[1])
+
+    usePlayerStore.getState().toggleShuffle()
+    expect(usePlayerStore.getState().musicQueue).toEqual(ids)
+    expect(usePlayerStore.getState().musicQueueIndex).toBe(ids.indexOf(shuffled[1]))
+  })
+
+  it.each([false, true])('restores the index by track ID with shuffle=%s', async (shuffleEnabled) => {
+    const { db, useLibraryStore, usePlayerStore } = await freshModules({ skipPlayerInit: true })
+    const { playlist, tracks } = await seedPlaylist(useLibraryStore, 4)
+    const ids = tracks.map((track) => track.id)
+    await db.playerState.put({
+      id: 'player', source: 'music', volume: 1, shuffleEnabled, repeatMode: 'off',
+      currentPlaylistId: playlist.id, currentTrackId: ids[2], currentTime: 25,
+      queue: ['removed-track', ids[2], ids[0], ids[1], ids[3]], queueIndex: 1,
+      currentBookId: null,
+    })
+
+    await usePlayerStore.getState().init()
+
+    expect(usePlayerStore.getState().currentTime).toBe(25)
+    expect(usePlayerStore.getState().musicQueueIndex).toBe(shuffleEnabled ? 0 : 2)
+    expect(usePlayerStore.getState().musicQueue).toEqual(shuffleEnabled ? [ids[2], ids[0], ids[1], ids[3]] : ids)
+    await usePlayerStore.getState().next()
+    expect(usePlayerStore.getState().currentTrackId).toBe(shuffleEnabled ? ids[0] : ids[3])
+  })
+
+  it('handles manual navigation for empty and single-track queues', async () => {
+    const { useLibraryStore, usePlayerStore } = await freshModules()
+    await usePlayerStore.getState().next()
+    await usePlayerStore.getState().previousTrack()
+    expect(usePlayerStore.getState().currentTrackId).toBeNull()
+
+    const { playlist, tracks } = await seedPlaylist(useLibraryStore, 1)
+    await usePlayerStore.getState().playPlaylist(playlist.id)
+    for (const action of ['next', 'previousTrack'] as const) {
+      usePlayerStore.getState().seek(20)
+      await usePlayerStore.getState()[action]()
+      expect(usePlayerStore.getState().currentTrackId).toBe(tracks[0].id)
+      expect(usePlayerStore.getState().currentTime).toBe(0)
+    }
   })
 
   it('switching to an audiobook and back preserves each session state independently', async () => {

@@ -43,8 +43,10 @@ export default function MiniPlayer() {
   const progress = totalDuration > 0 ? Math.min(100, (shownTime / totalDuration) * 100) : 0
   const queueIndex = source === 'music' ? musicQueueIndex : bookQueueIndex
   const queueLength = source === 'music' ? musicQueue.length : bookQueue.length
-  const hasPreviousTrack = queueIndex > 0
-  const hasNextTrack = queueIndex >= 0 && queueIndex < queueLength - 1
+  const hasPreviousTrack = source === 'music' ? queueLength > 0 : queueIndex > 0
+  const hasNextTrack = source === 'music'
+    ? queueLength > 0
+    : queueIndex >= 0 && queueIndex < queueLength - 1
   const seekTo = (time: number) => seek(Math.max(0, Math.min(time, totalDuration || time)))
   const jumpBy = (seconds: number) => {
     seekTo(shownTime + seconds)

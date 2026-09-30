@@ -23,6 +23,9 @@ export default function PlaylistScreen({ playlistId }: Props) {
   const { addFiles, removeTrack, renameTrack, reorderTracks, importProgress } = useLibraryStore()
   const player = usePlayerStore()
   const { goHome, showToast } = useUiStore()
+  // Android document providers can report audio as application/octet-stream.
+  // Let the user select it, then validate its MIME type/extension in addFiles.
+  const accept = /Android/i.test(navigator.userAgent) ? undefined : ACCEPT
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dirInputRef = useRef<HTMLInputElement>(null)
@@ -55,16 +58,21 @@ export default function PlaylistScreen({ playlistId }: Props) {
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
     const files = Array.from(fileList)
-    const result = await addFiles(playlistId, files)
-    if (result.added > 0 && result.skipped.length > 0) {
-      showToast(`Added ${result.added}, skipped ${result.skipped.length} non-audio file(s)`)
-    } else if (result.added > 0) {
-      showToast(`Added ${result.added} track${result.added === 1 ? '' : 's'}`)
-    } else {
-      showToast('No supported audio files found')
+    try {
+      const result = await addFiles(playlistId, files)
+      if (result.added > 0 && result.skipped.length > 0) {
+        showToast(`Added ${result.added}, skipped ${result.skipped.length} file(s)`)
+      } else if (result.added > 0) {
+        showToast(`Added ${result.added} track${result.added === 1 ? '' : 's'}`)
+      } else {
+        showToast('No readable audio files found. Try another file.')
+      }
+    } catch {
+      showToast('Could not save audio files. Check available storage and try again.')
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      if (dirInputRef.current) dirInputRef.current.value = ''
     }
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    if (dirInputRef.current) dirInputRef.current.value = ''
   }
 
   const playTrack = (trackId: string) => {
@@ -113,6 +121,7 @@ export default function PlaylistScreen({ playlistId }: Props) {
             onClick={() => dirInputRef.current?.click()}
             aria-label="Add folder"
             title="Add a whole folder"
+            disabled={!!importProgress}
           >
             <FolderPlusIcon />
           </button>
@@ -121,6 +130,7 @@ export default function PlaylistScreen({ playlistId }: Props) {
             onClick={() => fileInputRef.current?.click()}
             aria-label="Add music"
             title="Add files"
+            disabled={!!importProgress}
           >
             <PlusIcon />
           </button>
@@ -129,7 +139,7 @@ export default function PlaylistScreen({ playlistId }: Props) {
         <input
           ref={fileInputRef}
           type="file"
-          accept={ACCEPT}
+          accept={accept}
           multiple
           hidden
           onChange={(e) => void handleFiles(e.target.files)}
